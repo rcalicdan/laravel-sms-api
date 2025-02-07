@@ -11,6 +11,12 @@
         "laravel sms api",
         "laravel sms web api"
     ],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/Reymart221111/laravel-sms-api"
+        }
+    ],
     "homepage": "https://github.com/gr8shivam/laravel-sms-api",
     "authors": [
         {
