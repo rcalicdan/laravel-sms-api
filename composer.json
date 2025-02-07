@@ -1,5 +1,5 @@
 {
-    "name": "gr8shivam/laravel-sms-api",
+    "name": "reymart221111/laravel-sms-api",
     "version": "3.0.6",
     "description": "Laravel package to provide SMS API integration. Any SMS vendor that provides REST API can be used. SMS-API channel for Laravel notifications also included.",
     "license": "MIT",
@@ -14,7 +14,7 @@
     "repositories": [
         {
             "type": "vcs",
-            "url": "https://github.com/Reymart221111/laravel-sms-api"
+            "url": "https://github.com/Reymart221111/laravel-sms-api.git"
         }
     ],
     "homepage": "https://github.com/gr8shivam/laravel-sms-api",
