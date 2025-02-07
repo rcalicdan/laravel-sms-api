@@ -1,5 +1,5 @@
 {
-    "name": "gr8shivam/laravel-sms-api",
+    "name": "reymart221111/laravel-sms-api",
     "version": "3.0.6",
     "description": "Laravel package to provide SMS API integration. Any SMS vendor that provides REST API can be used. SMS-API channel for Laravel notifications also included.",
     "license": "MIT",
@@ -29,7 +29,7 @@
     "require": {
         "php": ">=5.6.4",
         "illuminate/support": "^5.0|^6.0|^7.0|^8.0|^9.0|^10.0|^11.0",
-        "guzzlehttp/guzzle": "~6.0|^7.0"
+        "guzzlehttp/guzzle": "^6.0|^7.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^5.3|^9.5.10",
