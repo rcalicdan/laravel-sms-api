@@ -10,16 +10,17 @@ use Illuminate\Support\Facades\Log;
 use GuzzleHttp\Exception\RequestException;
 use Gr8Shivam\SmsApi\Exception\InvalidMethodException;
 
+
 class SmsApi
 {
-    private static $client = null;
-    private $config = array();
-    private $gateway;
-    private $request = '';
-    private $response = '';
-    private $responseCode = '';
-    private $country_code = null;
-    private $wrapperParams=[];
+    protected static $client = null;
+    protected $config = array();
+    protected $gateway;
+    protected $request = '';
+    protected $response = '';
+    protected $responseCode = '';
+    protected $country_code = null;
+    protected $wrapperParams = [];
 
     /**
      * SmsApi constructor.
@@ -89,43 +90,47 @@ class SmsApi
      * @return $this
      * @throws InvalidMethodException
      */
+
+
     public function sendMessage($to, $message, $extra_params = null, $extra_headers = [])
     {
+        // Load the default gateway if none is set
         if ($this->gateway == '') {
             $this->loadDefaultGateway();
         }
+
+        // Load credentials from the configuration
         $this->loadCredentialsFromConfig();
 
+        // Extract configuration values
         $request_method = isset($this->config['method']) ? $this->config['method'] : 'GET';
         $url = $this->config['url'];
-
         $mobile = $this->config['add_code'] ? $this->addCountryCode($to) : $to;
+
+        // Handle mobile number formatting based on JSON setting
         if (!(isset($this->config['json']) && $this->config['json'])) {
-            //Flatten Array if JSON false
-            if (is_array($mobile)){
+            // Flatten array if JSON is false
+            if (is_array($mobile)) {
                 $mobile = $this->composeBulkMobile($mobile);
             }
-        }
-        else{
-            //Transform to Array if JSON true
-            if (!is_array($mobile)){
-                $mobile = (isset($this->config['jsonToArray']) ? $this->config['jsonToArray'] : true) ? array($mobile) : $mobile;
-                // $mobile = array($mobile);
+        } else {
+            // Transform to array if JSON is true
+            if (!is_array($mobile)) {
+                $mobile = (isset($this->config['jsonToArray']) ? $this->config['jsonToArray'] : true) ? [$mobile] : $mobile;
             }
         }
 
+        // Prepare parameters and headers
         $params = $this->config['params']['others'];
-
         $headers = isset($this->config['headers']) ? $this->config['headers'] : [];
 
-        //Check wrapper for JSON Payload
-        $wrapper = isset($this->config['wrapper']) ? $this->config['wrapper'] : NULL;
-
-        $wrapperParams = array_merge($this->wrapperParams,(isset($this->config['wrapperParams']) ? $this->config['wrapperParams'] : []));
-
+        // Check for a wrapper in the configuration
+        $wrapper = isset($this->config['wrapper']) ? $this->config['wrapper'] : null;
+        $wrapperParams = array_merge($this->wrapperParams, (isset($this->config['wrapperParams']) ? $this->config['wrapperParams'] : []));
         $send_to_param_name = $this->config['params']['send_to_param_name'];
         $msg_param_name = $this->config['params']['msg_param_name'];
 
+        // Build the payload
         if ($wrapper) {
             $send_vars[$send_to_param_name] = $mobile;
             $send_vars[$msg_param_name] = $message;
@@ -134,21 +139,28 @@ class SmsApi
             $params[$msg_param_name] = $message;
         }
 
+        // Merge wrapper parameters if applicable
         if ($wrapper && $wrapperParams) {
             $send_vars = array_merge($send_vars, $wrapperParams);
         }
 
+        // Merge extra parameters and headers if provided
         if ($extra_params) {
             $params = array_merge($params, $extra_params);
         }
-
-        if($extra_headers){
+        if ($extra_headers) {
             $headers = array_merge($headers, $extra_headers);
         }
 
+        // Ensure the Authorization header is properly Base64-encoded for Twilio
+        if (isset($headers['Authorization'])) {
+            $headers['Authorization'] = 'Basic ' . base64_encode(env('TWILIO_ACCOUNT_SID') . ':' . env('TWILIO_AUTH_TOKEN'));
+        }
+
         try {
-            //Build Request
+            // Build the HTTP request
             $request = new Request($request_method, $url);
+
             if ($request_method == "GET") {
                 $promise = $this->getClient()->sendAsync(
                     $request,
@@ -158,7 +170,7 @@ class SmsApi
                     ]
                 );
             } elseif ($request_method == "POST") {
-                $payload = $wrapper ? array_merge(array($wrapper => array($send_vars)), $params) : $params;
+                $payload = $wrapper ? array_merge([$wrapper => [$send_vars]], $params) : $params;
 
                 if ((isset($this->config['json']) && $this->config['json'])) {
                     $promise = $this->getClient()->sendAsync(
@@ -172,36 +184,50 @@ class SmsApi
                     $promise = $this->getClient()->sendAsync(
                         $request,
                         [
-                            'query' => $params,
+                            'form_params' => $payload, // Use form_params for non-JSON POST requests
                             'headers' => $headers
                         ]
                     );
                 }
             } else {
-                throw new InvalidMethodException(
-                    sprintf("Only GET and POST methods allowed.")
-                );
+                throw new \InvalidArgumentException("Only GET and POST methods are allowed.");
             }
 
+            // Wait for the response
             $response = $promise->wait();
             $this->response = $response->getBody()->getContents();
             $this->responseCode = $response->getStatusCode();
 
-            Log::info('SMS Gateway Response Code: '. $this->responseCode);
-            Log::info('SMS Gateway Response Body: \n'. $this->response);
-
-//            $this->response = $promise->wait()->getBody()->getContents();
-
+            // Log the full request and response details
+            Log::debug('SMS Gateway Request:', [
+                'method' => $request_method,
+                'url' => $url,
+                'headers' => $headers,
+                'payload' => $payload,
+            ]);
+            Log::debug('SMS Gateway Response:', [
+                'status_code' => $this->responseCode,
+                'body' => $this->response,
+            ]);
         } catch (RequestException $e) {
             if ($e->hasResponse()) {
                 $response = $e->getResponse();
-                $this->response = Message::bodySummary($response);
+                $this->response = $response->getBody()->getContents();
                 $this->responseCode = $response->getStatusCode();
 
-                Log::error('SMS Gateway Response Code: '. $this->responseCode);
-                Log::error('SMS Gateway Response Body: \n'. $this->response);
+                // Log the error details
+                Log::error('SMS Gateway Error:', [
+                    'status_code' => $this->responseCode,
+                    'body' => $this->response,
+                ]);
+            } else {
+                // Log the exception message if there's no response
+                Log::error('SMS Gateway Exception:', [
+                    'message' => $e->getMessage(),
+                ]);
             }
         }
+
         return $this;
     }
 
@@ -210,7 +236,7 @@ class SmsApi
      *
      * @return $this
      */
-    private function loadDefaultGateway()
+    protected function loadDefaultGateway()
     {
         $default_acc = config('sms-api.default', null);
         if ($default_acc) {
@@ -238,7 +264,7 @@ class SmsApi
      * @param $mobile
      * @return array|string
      */
-    private function addCountryCode($mobile)
+    protected function addCountryCode($mobile)
     {
         if (!$this->country_code) {
             $this->country_code = config('sms-api.country_code', '91');
@@ -258,7 +284,7 @@ class SmsApi
      * @param $mobile
      * @return string
      */
-    private function composeBulkMobile($mobile)
+    protected function composeBulkMobile($mobile)
     {
         return implode(',', $mobile);
     }
